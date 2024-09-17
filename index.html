@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Anime Generator</title>
   <style>
     body {
@@ -25,6 +27,7 @@
       margin: 20px;
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
 </head>
 <body>
   <h1>Anime Generator</h1>
@@ -33,80 +36,88 @@
   <div id="loading"></div>
 
   <script>
-    // Load the AnimeGAN model
-    const model = await tf.loadModel('https://storage.googleapis.com/tfjs-models/tfjs/animegan_v2/model.json');
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Load the AnimeGAN model
+      const model = await tf.loadGraphModel('https://storage.googleapis.com/tfjs-models/tfjs/animegan_v2/model.json');
 
-    // Select input images
-    const inputImages = [
-      'https://i.pinimg.com/236x/62/48/03/624803bee204bc2b7761449dcc502821.jpg',
-      'https://img.freepik.com/free-vector/hand-drawn-anime-kawaii-illustration_52683-126417.jpg?t=st=1726587756~exp=1726591356~hmac=b1ebe531a76a48d399457bbcba4abd307ed93d9ae25283de8502559f85d6b568&w=360',
-      'https://img.freepik.com/free-vector/hand-drawn-anime-kawaii-illustration_52683-126837.jpg?t=st=1726587812~exp=1726591412~hmac=024b52c8701eadb2a84f130648d854aa3ed80d8d1fad01db2443e7280344c067&w=360'
-    ];
+      // Select input images
+      const inputImages = [
+        'https://i.pinimg.com/236x/62/48/03/624803bee204bc2b7761449dcc502821.jpg',
+        'https://img.freepik.com/free-vector/hand-drawn-anime-kawaii-illustration_52683-126417.jpg?t=st=1726587756~exp=1726591356~hmac=b1ebe531a76a48d399457bbcba4abd307ed93d9ae25283de8502559f85d6b568&w=360',
+        'https://img.freepik.com/free-vector/hand-drawn-anime-kawaii-illustration_52683-126837.jpg?t=st=1726587812~exp=1726591412~hmac=024b52c8701eadb2a84f130648d854aa3ed80d8d1fad01db2443e7280344c067&w=360'
+      ];
 
-    // Create a function to convert the input images to anime
-    async function convertToAnime(imgUrl) {
-      // Load the input image
-      const img = await tf.browser.fromPixels(await loadImage(imgUrl));
+      // Create a function to convert the input images to anime
+      async function convertToAnime(imgUrl) {
+        // Load the input image
+        const img = await loadImage(imgUrl);
 
-      // Resize the input image to 512x512
-      const resizedImg = tf.image.resizeBilinear(img, [512, 512]);
+        // Resize the input image to 512x512
+        const resizedImg = tf.image.resizeBilinear(img, [512, 512]);
 
-      // Convert the input image to a tensor
-      const inputTensor = tf.tensor4d(resizedImg.arraySync(), [1, 512, 512, 3]);
+        // Convert the resized image to a tensor
+        const inputTensor = resizedImg.expandDims(0);
 
-      // Make a prediction using the AnimeGAN model
-      const outputTensor = model.predict(inputTensor);
+        // Make a prediction using the AnimeGAN model
+        const outputTensor = model.predict(inputTensor);
 
-      // Convert the output tensor to an image
-      const outputImage = tf.browser.toPixels(outputTensor);
+        // Convert the output tensor to an image
+        const outputImage = await tf.browser.toPixels(outputTensor.squeeze());
 
-      return outputImage;
-    }
+        return outputImage;
+      }
 
-    // Add an event listener to the generate button
-    document.getElementById('generate-button').addEventListener('click', async () => {
-      // Show the loading animation
-      document.getElementById('loading').innerHTML = 'Loading...';
-      let dots = '';
-      setInterval(() => {
-        dots += '.';
-        document.getElementById('loading').innerHTML = `Loading${dots}`;
-      }, 500);
+      // Add an event listener to the generate button
+      document.getElementById('generate-button').addEventListener('click', async () => {
+        // Show the loading animation
+        document.getElementById('loading').innerHTML = 'Loading...';
+        let dots = '';
+        const loadingInterval = setInterval(() => {
+          dots += '.';
+          document.getElementById('loading').innerHTML = `Loading${dots}`;
+        }, 500);
 
-      // Convert the input images to anime
-      const animeImages = await Promise.all(inputImages.map(async (imgUrl) => {
-        const animeImg = await convertToAnime(imgUrl);
-        return animeImg;
-      }));
+        // Convert the input images to anime
+        const animeImages = await Promise.all(inputImages.map(async (imgUrl) => {
+          const animeImg = await convertToAnime(imgUrl);
+          return animeImg;
+        }));
 
-      // Hide the loading animation
-      document.getElementById('loading').innerHTML = '';
+        // Clear the loading animation
+        clearInterval(loadingInterval);
+        document.getElementById('loading').innerHTML = '';
 
-      // Display the generated anime images
-      const animeContainer = document.getElementById('anime-container');
-      animeContainer.innerHTML = '';
-      animeImages.forEach((animeImg) => {
-        const img = new Image();
-        img.src = URL.createObjectURL(new Blob([new Uint8Array(animeImg)], { type: 'image/png' }));
-        img.className = 'anime-image';
-        animeContainer.appendChild(img);
+        // Display the generated anime images
+        const animeContainer = document.getElementById('anime-container');
+        animeContainer.innerHTML = '';
+        animeImages.forEach((animeImg) => {
+          const img = new Image();
+          img.src = URL.createObjectURL(new Blob([new Uint8Array(animeImg)], { type: 'image/png' }));
+          img.className = 'anime-image';
+          animeContainer.appendChild(img);
+        });
       });
-    });
-  });
 
-  // Helper function to load an image from a URL
-  async function loadImage(url) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        resolve(tf.browser.fromPixels(img));
-      };
-      img.onerror = () => {
-        reject(new Error(`Failed to load image from ${url}`));
-      };
-      img.src = url;
+      // Helper function to load an image from a URL
+      async function loadImage(url) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'Anonymous';
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            resolve(tf.browser.fromPixels(canvas));
+          };
+          img.onerror = () => {
+            reject(new Error(`Failed to load image from ${url}`));
+          };
+          img.src = url;
+        });
+      }
     });
-  }
   </script>
 </body>
 </html>
